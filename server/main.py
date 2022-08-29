@@ -7,8 +7,9 @@ author_list = []
 holds = []
 alerts = []
 is_queue_open = False
-is_hidden = True
+# is_hidden = True
 NEXT = ''
+cmd = ''
 STREAMER = ''
 
 #FUNCTIONS:
@@ -27,19 +28,94 @@ def Screen():
         print(f"{ind+1}. {hold}", end=" | ")
     print()
     
-    print("\nCurrent: (nobody!)\n") if not NEXT else print(f"\nCurrent: {NEXT}\n")
-    
-    if is_queue_open:
-        print("Queue: (empty!)\n") if not len(author_list) else print(f"Queue: (Total --> {len(author_list)})\n")
-    else: print("Queue: (closed!)\n")
-    for index, item in enumerate(author_list):
-        # if is_hidden and index >= 11:
-        #     break
-        print(f"{index+1}. {item}")
+    print("\nCurrent: (nobody!)") if not NEXT else print(f"\nCurrent: {NEXT}")
         
     print("\n\n\nAlerts:\n") if len(alerts) else print("\n\n\nAlerts: (no alerts!)\n")
     for alert in alerts:
         print('-', alert)
+        
+def write():
+    file = open("queue.html", "w", encoding='utf-8')
+    file.write("""
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Queue</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      .container {
+        padding: 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        min-height: 100vh;
+        height: 100%;
+        width: 100%;
+        gap: 10px;
+        background-color: #4f7;
+      }
+
+      .container .title {
+        font-size: 3rem;
+        margin-bottom: 20px;
+        color: #fff;
+        text-shadow: 0 5px 5px rgba(0, 0, 0, 0.15);
+      }
+
+      .container li {
+        text-align: center;
+        word-wrap: break-word;
+        width: 95%;
+        max-width: 420px;
+        padding: 12px 12px;
+        list-style: none;
+        font-size: 2rem;
+        border-radius: 6px;
+        background-color: #fff;
+        color: #232323;
+        cursor: pointer;
+        box-shadow: 0 10px 10px rgba(0, 0, 0, 0.15);
+        transition: all 0.05s ease-out;
+      }
+
+      .container li:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 20px 10px rgba(0, 0, 0, 0.15);
+      }
+      
+      .container li span{
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <ol class="container">
+    """)
+    
+    file.write(f"""
+      <h1 class="title">The Queue - {len(author_list)}</h1>
+    """)
+    
+    if len(author_list):
+        for index, author in enumerate(author_list):
+            file.write(f"""
+      <li><span>{index+1}.</span> {author}</li>""")
+    
+    file.write("""
+    </ol>
+  </body>
+</html>
+""")
+    file.close()
 
 #INIT
 wrong_link = True
@@ -47,7 +123,7 @@ clear()
 while wrong_link:      
     try:
         id = input("Enter the stream url: ").strip()
-        STREAMER = input("Enter your exact streamer channel name: ").strip()
+        STREAMER = input("Exact Admin Name: ")
         chat = pytchat.create(video_id=id)
         wrong_link = False
     except:
@@ -69,10 +145,17 @@ print("connecting...")
 sleep(1)
 
 Screen()
+write()
 
 #COMMANDS
 while chat.is_alive():
     for c in chat.get().sync_items():
+    #test
+        if c.author.name not in author_list:
+            author_list.insert(0, c.author.name)
+            write()
+    #test
+        
         # AUDIENCE COMMANDS
         # !join
         if c.message.lower() == '!join' and c.author.name != STREAMER:
@@ -80,6 +163,7 @@ while chat.is_alive():
                 if c.author.name not in author_list:
                     author_list.append(c.author.name)
                     alerts.insert(0, f"{c.author.name} --> joined the queue!")
+                    write()
                 else:
                     alerts.insert(0, f"{c.author.name} --> already in the queue!")
                 
@@ -92,6 +176,7 @@ while chat.is_alive():
             else:
                 author_list.remove(c.author.name)
                 alerts.insert(0, f"{c.author.name} --> left the queue!")
+                write()
                 
             Screen()
             
@@ -107,47 +192,12 @@ while chat.is_alive():
         
         # STREAM CONTROLLER
         # !next
-        if c.message.lower() == "!next" and c.author.name == STREAMER:
+        if c.message.lower() == '!next' and c.author.name == STREAMER:
             if len(author_list):
                 NEXT = author_list.pop(0)
+                write()
             else:
                 alerts.insert(0, "EMPTY QUEUE!")
-            
-            Screen()
-            
-        # !hold
-        if c.message.lower() == "!hold" and c.author.name == STREAMER:
-            if NEXT:
-                holds.append(NEXT)
-                NEXT = ''
-                if len(author_list):
-                    NEXT = author_list.pop(0)
-                else:
-                    alerts.insert(0, "EMPTY QUEUE!")
-            else:
-                alerts.insert(0, "FIRST CALL NEXT TO HOLD SOMEONE!")
-            
-            Screen()
-            
-        # !release 
-        if "!release" in c.message.lower() and c.author.name == STREAMER:
-            try:
-                release_candidate_pos = int(c.message.split(" ")[1])
-                if len(holds) >= release_candidate_pos:
-                    holds.pop(release_candidate_pos-1)
-                else:
-                    alerts.insert(0, f"{release_candidate_pos} --> NOT ON HOLD!")
-            except:
-                if not len(holds):
-                    alerts.insert(0, "NOBODY'S ON HOLD!")
-                else:
-                    alerts.insert(0, "FAILED! --> format: !release position")
-            
-            Screen()
-            
-        # !clear
-        if c.message.lower() == "!clear" and c.author.name == STREAMER:
-            alerts = []
             
             Screen()
             
@@ -162,29 +212,6 @@ while chat.is_alive():
         if c.message.lower() == "!open" and c.author.name == STREAMER:
             is_queue_open = True
             alerts.insert(0, "OPENED THE QUEUE")
-            
-            Screen()
-            
-        # !show
-        if c.message.lower() == "!show" and c.author.name == STREAMER:
-            is_hidden = False
-            
-            Screen()
-            
-        # !hide
-        if c.message.lower() == "!hide" and c.author.name == STREAMER:
-            is_hidden = True
-            
-            Screen()
-            
-        # !remove<pos>
-        if "!remove" in c.message.lower() and c.author.name == STREAMER:
-            try:
-                ind = int(c.message.split(" ")[1])-1
-                alerts.insert(0, f"REMOVED --> {author_list[ind]}")
-                author_list.pop(ind)
-            except:
-                alerts.insert(0, "REMOVING FAILED! --> (format: !remove position)")
             
             Screen()
         
